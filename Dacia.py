@@ -42,6 +42,8 @@ fuel_df = load_csv(FUEL_FILE, fuel_columns)
 
 last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
 st.write(f"Last km: {last_km}")
+user_email = st.session_state.get("user", None)  # Streamlit sets the logged-in user automatically
+st.write(f"Logged in as: {user_email}")
 
 # Add Driving Trip form, fueling form, stats, etc.
 
@@ -66,9 +68,7 @@ if submitted:
     if driven_km <= 0:
         st.error(f"Error: Kilometers must be greater than last entry ({last_km})")
     else:
-        user = "LocalUser"
-
-        
+   
         # No fueling in between → just one entry
         new_row = {
             "Date": trip_date,
@@ -76,7 +76,7 @@ if submitted:
             "Km After": km_after,
             "Driven Km": driven_km,
             "Comment": comment,
-            "User": user
+            "User": user_email
         }
         driving_df = pd.concat([driving_df, pd.DataFrame([new_row])], ignore_index=True)
 
@@ -132,38 +132,51 @@ with st.form("fuel_form"):
             # ---- Check for trips that include this fueling ----
             trips_to_split = driving_df[(driving_df["Km After"] >= last_km_fuel) & (driving_df["Km After"] <= km_fuel)]
             
-            for idx, trip in driving_df.iterrows():
-                start_km = trip["Km After"] - trip["Driven Km"]
-                end_km = trip["Km After"]
-                
-                if start_km < km_fuel < end_km:
-                    # Split trip
-                    segment1 = {
-                        "Date": trip["Date"],
-                        "Driver": trip["Driver"],
-                        "Km After": km_fuel,
-                        "Driven Km": km_fuel - start_km,
-                        "Comment": "AUTOMATICALLY FUELED",
-                        "User": user
-                    }
-                    segment2 = trip.copy()
-                    segment2["Driven Km"] = end_km - km_fuel
-                    # Optional: keep original comment in segment2
-                    segment2["Comment"] = trip["Comment"]
-
-                    # Replace original trip with two segments
-                    driving_df = pd.concat([driving_df.drop(idx), pd.DataFrame([segment1, segment2])], ignore_index=True)
-                    break  # fueling only splits one trip
+         # Find trips that include this fueling
+            # Split trip at fueling
+        for idx, trip in driving_df.iterrows():
+            start_km = trip["Km After"] - trip["Driven Km"]
+            end_km = trip["Km After"]
             
-            save_csv(driving_df, DRIVING_FILE)
-            st.session_state["driving_df"] = driving_df
+            if start_km < km_fuel < end_km:
+                # Segment before fueling
+                segment1 = {
+                    "Date": trip["Date"],
+                    "Driver": trip["Driver"],
+                    "Km After": km_fuel,
+                    "Driven Km": km_fuel - start_km,
+                    "Comment": "AUTOMATICALLY FUELED",
+                    "User": user_email
+                }
+                # Segment after fueling
+                segment2 = {
+                    "Date": trip["Date"],
+                    "Driver": trip["Driver"],
+                    "Km After": end_km,
+                    "Driven Km": end_km - km_fuel,
+                    "Comment": trip["Comment"],
+                    "User": trip["User"]
+                }
 
-        
+                # Drop the original trip
+                driving_df = driving_df.drop(idx)
 
-# ======================
-# Driver Stats
-# ======================
-st.header("Driver Stats")
+                # Append the two segments
+                driving_df = pd.concat([driving_df, pd.DataFrame([segment1, segment2])], ignore_index=True)
+
+                # Sort by kilometers to keep correct order
+                driving_df = driving_df.sort_values("Km After").reset_index(drop=True)
+
+                save_csv(driving_df, DRIVING_FILE)
+                st.session_state["driving_df"] = driving_df
+                break
+
+                
+
+        # ======================
+        # Driver Stats
+        # ======================
+        st.header("Driver Stats")
 if len(driving_df) > 0:
     total_km = driving_df.groupby("Driver")["Driven Km"].sum().reset_index()
     st.subheader("Total Kilometers per Driver")
