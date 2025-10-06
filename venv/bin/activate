@@ -39,10 +39,10 @@ deactivate nondestructive
 if [ "${OSTYPE:-}" = "cygwin" ] || [ "${OSTYPE:-}" = "msys" ] ; then
     # transform D:\path\to\venv to /d/path/to/venv on MSYS
     # and to /cygdrive/d/path/to/venv on Cygwin
-    export VIRTUAL_ENV=$(cygpath /home/jakob/Dropbox/Apps/Dacias_Fahrtenbuch/Dacia_APP/venv)
+    export VIRTUAL_ENV=$(cygpath /home/jakob/Dropbox/Apps/the_dacia_fahrtenbuch/Dacia_APP/venv)
 else
     # use the path as-is
-    export VIRTUAL_ENV=/home/jakob/Dropbox/Apps/Dacias_Fahrtenbuch/Dacia_APP/venv
+    export VIRTUAL_ENV=/home/jakob/Dropbox/Apps/the_dacia_fahrtenbuch/Dacia_APP/venv
 fi
 
 _OLD_VIRTUAL_PATH="$PATH"

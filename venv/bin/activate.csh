@@ -9,7 +9,7 @@ alias deactivate 'test $?_OLD_VIRTUAL_PATH != 0 && setenv PATH "$_OLD_VIRTUAL_PA
 # Unset irrelevant variables.
 deactivate nondestructive
 
-setenv VIRTUAL_ENV /home/jakob/Dropbox/Apps/Dacias_Fahrtenbuch/Dacia_APP/venv
+setenv VIRTUAL_ENV /home/jakob/Dropbox/Apps/the_dacia_fahrtenbuch/Dacia_APP/venv
 
 set _OLD_VIRTUAL_PATH="$PATH"
 setenv PATH "$VIRTUAL_ENV/"bin":$PATH"

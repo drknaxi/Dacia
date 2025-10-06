@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /home/jakob/Dropbox/Apps/Dacias_Fahrtenbuch/Dacia_APP/venv
+set -gx VIRTUAL_ENV /home/jakob/Dropbox/Apps/the_dacia_fahrtenbuch/Dacia_APP/venv
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH

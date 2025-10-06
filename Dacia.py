@@ -1,23 +1,21 @@
 import streamlit as st
-import pandas as pd
-from datetime import datetime
-from io import BytesIO
 import dropbox
-import os
+import pandas as pd
+from io import BytesIO
+from datetime import datetime
 
 # ======================
-# Dropbox Setup
+# Dropbox token
 # ======================
-import streamlit as st
-import dropbox
 
 TOKEN = st.secrets["DROPBOX_TOKEN"]
 dbx = dropbox.Dropbox(TOKEN)
 st.success("Dropbox connected!")
-
-# Example: Load CSV
 DRIVING_FILE = "/driving_log.csv"
+FUEL_FILE = "/fuel_log.csv"
+
 driving_columns = ["Date", "Driver", "Km After", "Driven Km", "Comment", "User"]
+fuel_columns = ["Date", "Driver", "Km At Fuel", "Liters", "Euros", "Comment", "User"]
 
 def load_csv(path, columns):
     try:
@@ -27,19 +25,18 @@ def load_csv(path, columns):
     except dropbox.exceptions.ApiError:
         return pd.DataFrame(columns=columns)
 
+# Load CSVs safely
 driving_df = load_csv(DRIVING_FILE, driving_columns)
-st.write(driving_df)
-st.write(fuel_df)     # show fuel log
+fuel_df = load_csv(FUEL_FILE, fuel_columns)
 
-# Save CSV to Dropbox
-def save_csv(df, path):
-    with BytesIO() as f:
-        df.to_csv(f, index=False)
-        f.seek(0)
-        dbx.files_upload(f.read(), path, mode=dropbox.files.WriteMode.overwrite)
+# ======================
+# Everything below can now safely use driving_df and fuel_df
+# ======================
 
-# Get last kilometers
 last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
+st.write(f"Last km: {last_km}")
+
+# Add Driving Trip form, fueling form, stats, etc.
 
 # ======================
 # Add Driving Trip
