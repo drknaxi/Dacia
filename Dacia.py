@@ -3,13 +3,27 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 import dropbox
+import os
 
 # ======================
 # Dropbox Setup
 # ======================
-TOKEN = "sl.u.AGBEM6FLqkv-BVy_3Sv79TzemZbI7pXoH3qdsfdUh5gxyYuWECkultvNN9fZCnauHwWdTqWoJz3McVs49RcX18g1MyPhxqJSHqptu9VflG1ip04WoC2HHAiOTStALe-efr2ZDbycqH94AXDoOFNDQpQK9Vv__utEDGDedggRoJYHqvVuf0sW2Zj18k75Qv-F4jsu0XJHOk3Y9ur3_YL76MAiIuYwNoHiAdVmN-Uy7kfPFdD4ziCn5TsSKBIVDosPgNPYKe9Yv7kOqYf9XfBoNd5z2ra7FBxK33Wvrto9lkWNlv-zO98H5ipkm4ph4OzdTa9p-Pa4JN2rwkGBxKeresA5e_mJzomE39x70kn7xI-87whOAbSJrv7Paa7TXVJWGaoThD8C3YR_LfXJY21gLMqFXpu-mn_AuGPwPGaWCilmxSPPORnbXqFRxXWfkT3qgzIfxLmU73vr3W4SkAuK78dXCzBgeADsaZzmB3Lr9AaIawO0GC--mGaFryLF1yCxSpyX3CEBrABYIrfsURXNObc5nikfzQ1YAXUoVDdgwy5faiCbKSlweN9FDZSd8LX0loTBQhEG0CGo2PjOxyVe4mvEhRP5lbVOXsv1c3eKIWpyOpj_i_GHEfIsd6tblfTrGFBnApc1DFWNoKRLg_7xpthKyui4IZuORpxWABZ8sOgZ2fWTHMTjqZPDZa8wQSHvoHzPG89We0U4Rfjw3srjHMypLG1nmhe99YfUFi62Y_Q_EiyB_JQ1UnF12HIo2iaueh26bwb_X0RkZa6jAHKUrjH__ELp5qZ0FVn8i-3rYQdPeqVow39PFUN0c4FM3jo9C5cESfndRmxSP-n5GulaHcBTtLLNOMcMNpKTKiYnBs8Nt3ZdQA5w2V1QFXVbkwMX9yd5UOx6cPwUz1-FsVLCzvL1DY192qgZjgg5hh7nMpo5B88Y-uLO_ElO7HM3kQXRSPncolTm60jfexQbaudvNhzC9tu_P1gJrgHJZ9M6-Tkc9j4_giaKQYmVn2xmSo4-OBbzJlHWwl0KkTQ5dUyaso0SoazcP_2Rwz4yHOkPBemrtq-17vGRdIpdyeTyF5iErzFCaG350VdwBXNqBkmMJbQVh0jvBXxn87Wbu7WffiibjOULJoLw7ZULJSXGXulrFaSrufBr0vBNIvpE6mFcAUKRrm6x-3fqUJBZ5LgU_-8lGJkLj2RaB88iyMBq8KEZTkfdo-Bu1hAgcRYiRhTfCLbbiBdUBHFhoWNwY9uWm6gKyPwULaHSAvTgwnGgFnXgrsvDSB3FUlgmHgg-hTID6auN"  # Replace with your token
-dbx = dropbox.Dropbox(TOKEN)
-
+# Check if token exists in session state
+if "DROPBOX_TOKEN" not in st.session_state:
+    st.warning("Please enter your Dropbox access token to activate the app.")
+    token_input = st.text_input("Dropbox Access Token", type="password")
+    
+    if st.button("Activate App"):
+        if token_input:
+            st.session_state["DROPBOX_TOKEN"] = token_input
+            st.success("App activated!")
+        else:
+            st.error("Token cannot be empty.")
+else:
+    TOKEN = st.session_state["DROPBOX_TOKEN"]
+    dbx = dropbox.Dropbox(TOKEN)
+    st.write("Dropbox connected!")
+ 
 DRIVING_FILE = "/driving_log.csv"
 FUEL_FILE = "/fuel_log.csv"
 
