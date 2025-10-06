@@ -10,46 +10,40 @@ import os
 # ======================
 dbx = None  # placeholder
 
+
+# ======================
+# Token Input
+# ======================
 if "DROPBOX_TOKEN" not in st.session_state:
     st.warning("Please enter your Dropbox access token to activate the app.")
     token_input = st.text_input("Dropbox Access Token", type="password")
     
-    if st.button("Activate App"):
-        if token_input:
-            st.session_state["DROPBOX_TOKEN"] = token_input
-            st.success("App activated!")
-            st.experimental_rerun()  # rerun the app now that token exists
-        else:
-            st.error("Token cannot be empty.")
+    activate = st.button("Activate App")
+    if activate and token_input:
+        st.session_state["DROPBOX_TOKEN"] = token_input
+        st.success("App activated! Please refresh the page to continue.")
 else:
+    # ======================
+    # Dropbox-connected code
+    # ======================
     TOKEN = st.session_state["DROPBOX_TOKEN"]
     dbx = dropbox.Dropbox(TOKEN)
     st.success("Dropbox connected!")
 
-# ======================
-# Only run Dropbox-dependent code if dbx exists
-# ======================
-if dbx:
+    # Example: Load CSV
     DRIVING_FILE = "/driving_log.csv"
-    FUEL_FILE = "/fuel_log.csv"
-
     driving_columns = ["Date", "Driver", "Km After", "Driven Km", "Comment", "User"]
-    fuel_columns = ["Date", "Driver", "Km At Fuel", "Liters", "Euros", "Comment", "User"]
 
-    # Load CSVs
     def load_csv(path, columns):
         try:
             metadata, res = dbx.files_download(path)
-            data = res.content
-            df = pd.read_csv(BytesIO(data))
+            df = pd.read_csv(BytesIO(res.content))
             return df
         except dropbox.exceptions.ApiError:
             return pd.DataFrame(columns=columns)
 
     driving_df = load_csv(DRIVING_FILE, driving_columns)
-    fuel_df = load_csv(FUEL_FILE, fuel_columns)
-
-    st.write(driving_df)  # show driving log
+    st.write(driving_df)
     st.write(fuel_df)     # show fuel log
 
     # Save CSV to Dropbox
