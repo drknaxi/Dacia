@@ -3,6 +3,8 @@ import dropbox
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
+from datetime import date
+
 
 # ======================
 # Dropbox token
@@ -50,50 +52,113 @@ st.header("Add Driving Trip")
 st.write(f"Letzter Kilometerstand: {last_km} km")  # Display last entry
 
 with st.form("trip_form"):
-    date = st.date_input("Date", datetime.today())
+    trip_date = st.date_input("Date", date.today())  # default = today
     driver = st.text_input("Driver")
     km_after = st.number_input("Kilometers After", min_value=0)
     comment = st.text_input("Comment")
     submitted = st.form_submit_button("Submit Trip")
+    trip_date_str = trip_date.strftime("%d.%m.%Y")
+
+if submitted:
+    last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
+    driven_km = km_after - last_km
+
+    if driven_km <= 0:
+        st.error(f"Error: Kilometers must be greater than last entry ({last_km})")
+    else:
+        user = "LocalUser"
+
+        
+        # No fueling in between → just one entry
+        new_row = {
+            "Date": trip_date,
+            "Driver": driver,
+            "Km After": km_after,
+            "Driven Km": driven_km,
+            "Comment": comment,
+            "User": user
+        }
+        driving_df = pd.concat([driving_df, pd.DataFrame([new_row])], ignore_index=True)
+
+        save_csv(driving_df, DRIVING_FILE)
+        st.session_state["driving_df"] = driving_df
     
-    if submitted:
-        last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
-        driven_km = km_after - last_km
-        if driven_km <= 0:
-            st.error(f"Error: Kilometers must be greater than last entry ({last_km})")
-        else:
-            user = "LocalUser"
-            new_row = {"Date": date, "Driver": driver, "Km After": km_after,
-                    "Driven Km": driven_km, "Comment": comment, "User": user}
-            driving_df = pd.concat([driving_df, pd.DataFrame([new_row])], ignore_index=True)
-            save_csv(driving_df, DRIVING_FILE)
-            st.success(f"Trip saved! Driven km: {driven_km}")
+        st.success(f"Trip saved! Driven km: {driven_km}")
 
 # ======================
 # Add Fueling
 # ======================
 st.header("Add Fueling")
 with st.form("fuel_form"):
-    f_date = st.date_input("Date", datetime.today(), key="fuel_date")
+    f_date = st.date_input("Date", date.today(), key="fuel_date")
     fueler = st.text_input("Fueler", key="fueler")
-    km = st.number_input("Kilometers", min_value=0, key="km")
+    km_fuel = st.number_input("Kilometers", min_value=0, key="km")
     euros = st.number_input("Euros", min_value=0.0, key="euros")
     liters = st.number_input("Liters (optional)", min_value=0.0, key="liters")
     note = st.text_input("Note", key="note")
     fuel_submitted = st.form_submit_button("Submit Fueling")
+    fuel_date_str = trip_date.strftime("%d.%m.%Y")
+
+    
     
     if fuel_submitted:
-        last_km = fuel_df["Km"].iloc[-1] if len(fuel_df) > 0 else 0
-        if km <= last_km:
-            st.error(f"Kilometers must be greater than last fueling ({last_km})")
+        f_date_str = f_date.strftime("%d.%m.%Y")
+
+        last_km_fuel = fuel_df["Km"].iloc[-1] if len(fuel_df) > 0 else 0
+        last_km_drive = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
+
+        # Basic validation
+        if km_fuel <= last_km_fuel:
+            st.error(f"Kilometers must be greater than last fueling ({last_km_fuel})")
+        elif km_fuel > last_km_drive:
+            st.error(f"Add trip first, then fueling! Kilometers are higher than last trip ({last_km_drive})")
         else:
-            km_since_last = km - last_km
-            new_fuel = {"Date": f_date, "Fueler": fueler, "Km": km,
-                        "Euros": euros, "Liters": liters, "Note": note,
-                        "Km since last fueling": km_since_last}
+            # Save fueling
+            km_since_last = km_fuel - last_km_fuel
+            new_fuel = {
+                "Date": f_date_str,
+                "Fueler": fueler,
+                "Km": km_fuel,
+                "Euros": euros,
+                "Liters": liters,
+                "Note": note,
+                "Km since last fueling": km_since_last
+            }
             fuel_df = pd.concat([fuel_df, pd.DataFrame([new_fuel])], ignore_index=True)
             save_csv(fuel_df, FUEL_FILE)
+            st.session_state["fuel_df"] = fuel_df
             st.success(f"Fueling saved! Km since last fueling: {km_since_last}")
+
+            # ---- Check for trips that include this fueling ----
+            trips_to_split = driving_df[(driving_df["Km After"] >= last_km_fuel) & (driving_df["Km After"] <= km_fuel)]
+            
+            for idx, trip in driving_df.iterrows():
+                start_km = trip["Km After"] - trip["Driven Km"]
+                end_km = trip["Km After"]
+                
+                if start_km < km_fuel < end_km:
+                    # Split trip
+                    segment1 = {
+                        "Date": trip["Date"],
+                        "Driver": trip["Driver"],
+                        "Km After": km_fuel,
+                        "Driven Km": km_fuel - start_km,
+                        "Comment": "AUTOMATICALLY FUELED",
+                        "User": user
+                    }
+                    segment2 = trip.copy()
+                    segment2["Driven Km"] = end_km - km_fuel
+                    # Optional: keep original comment in segment2
+                    segment2["Comment"] = trip["Comment"]
+
+                    # Replace original trip with two segments
+                    driving_df = pd.concat([driving_df.drop(idx), pd.DataFrame([segment1, segment2])], ignore_index=True)
+                    break  # fueling only splits one trip
+            
+            save_csv(driving_df, DRIVING_FILE)
+            st.session_state["driving_df"] = driving_df
+
+        
 
 # ======================
 # Driver Stats
@@ -109,9 +174,10 @@ else:
 # ======================
 # Fuel Cost Sharing and Balance Grid
 # ======================
-st.header("Fuel Cost Sharing & Balance Grid")
+st.header("Fuel Cost Sharing & Balance Grid EXPERIMENTAL NOT EVERYTHING TESTED YET")
 if len(fuel_df) > 0 and len(driving_df) > 0:
-    drivers = driving_df["Driver"].unique()
+    # Include both drivers and fuelers
+    drivers = sorted(set(driving_df["Driver"].unique()) | set(fuel_df["Fueler"].unique()))
     balances = {d1: {d2: 0 for d2 in drivers} for d1 in drivers}
     
     for idx, fuel in fuel_df.iterrows():
@@ -121,13 +187,24 @@ if len(fuel_df) > 0 and len(driving_df) > 0:
         total_interval_km = driver_km.sum()
         if total_interval_km > 0:
             for d in driver_km.index:
-                share = driver_km[d]/total_interval_km * fuel["Euros"]
+                share = driver_km[d] / total_interval_km * fuel["Euros"]
                 if d != fuel["Fueler"]:
                     balances[d][fuel["Fueler"]] += share
     
-    # Display balance grid
+    # Build balance grid
+    grid = pd.DataFrame(balances).T
+
+    # Drop rows and columns that are entirely zero
+    grid = grid.loc[(grid != 0).any(axis=1), (grid != 0).any(axis=0)]
+
+    # Rename axes
+    grid.index = [f"{name} owes" for name in grid.index]
+    grid.columns = [f"{name} gets" for name in grid.columns]
+
     st.subheader("Who Owes Whom (€)")
-    grid = pd.DataFrame(balances).T  # rows = debtor, columns = creditor
-    st.dataframe(grid)
+    if grid.empty:
+        st.write("Currently no balances.")
+    else:
+        st.dataframe(grid.style.format("{:.2f}"))
 else:
     st.write("Not enough data for fuel stats yet.")
