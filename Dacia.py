@@ -25,6 +25,11 @@ def load_csv(path, columns):
     except dropbox.exceptions.ApiError:
         return pd.DataFrame(columns=columns)
 
+def save_csv(df, path):
+    with BytesIO() as f:
+        df.to_csv(f, index=False) 
+        f.seek(0) 
+        dbx.files_upload(f.read(), path, mode=dropbox.files.WriteMode.overwrite)
 # Load CSVs safely
 driving_df = load_csv(DRIVING_FILE, driving_columns)
 fuel_df = load_csv(FUEL_FILE, fuel_columns)
