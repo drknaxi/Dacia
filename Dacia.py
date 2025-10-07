@@ -229,8 +229,52 @@ with st.form("fuel_form"):
         st.header("Driver Stats")
 if len(driving_df) > 0:
     total_km = driving_df.groupby("Driver")["Driven Km"].sum().reset_index()
-    st.subheader("Total Kilometers per Driver")
-    st.dataframe(total_km)
+    total_km = total_km.rename(columns={"Driven Km": "Total Km"})
+    total_km["% of Total Km"] = 100 * total_km["Total Km"] / total_km["Total Km"].sum()
+
+    # --- Kilometers since last fueling ---
+    if len(fuel_df) > 0:
+        last_fuel_km = fuel_df["Km"].iloc[-1]
+        since_fuel_df = driving_df[driving_df["Km After"] > last_fuel_km]
+        km_since_fuel = since_fuel_df.groupby("Driver")["Driven Km"].sum().reset_index()
+        km_since_fuel = km_since_fuel.rename(columns={"Driven Km": "Km Since Fuel"})
+        km_since_fuel["% Since Fuel"] = 100 * km_since_fuel["Km Since Fuel"] / km_since_fuel["Km Since Fuel"].sum()
+    else:
+        km_since_fuel = pd.DataFrame(columns=["Driver", "Km Since Fuel", "% Since Fuel"])
+
+    # --- Merge stats ---
+    stats_df = pd.merge(total_km, km_since_fuel, on="Driver", how="outer").fillna(0)
+
+    # --- Combine specific drivers ---
+    combined_name = "Miri + Johannes"
+    combined_drivers = ["Miri", "Johannes"]
+
+    combined_total_km = stats_df.loc[stats_df["Driver"].isin(combined_drivers), "Total Km"].sum()
+    combined_total_pct = stats_df.loc[stats_df["Driver"].isin(combined_drivers), "% of Total Km"].sum()
+    combined_since_fuel = stats_df.loc[stats_df["Driver"].isin(combined_drivers), "Km Since Fuel"].sum()
+    combined_since_pct = stats_df.loc[stats_df["Driver"].isin(combined_drivers), "% Since Fuel"].sum()
+
+    # Append the combined row
+    stats_df = pd.concat([
+        stats_df,
+        pd.DataFrame([{
+            "Driver": combined_name,
+            "Total Km": combined_total_km,
+            "% of Total Km": combined_total_pct,
+            "Km Since Fuel": combined_since_fuel,
+            "% Since Fuel": combined_since_pct
+        }])
+    ], ignore_index=True)
+
+    # --- Display ---
+    st.header("Driver Stats Enhanced")
+    st.dataframe(stats_df.style.format({
+        "Total Km": "{:.0f}",
+        "% of Total Km": "{:.1f}%",
+        "Km Since Fuel": "{:.0f}",
+        "% Since Fuel": "{:.1f}%"
+    }))
+
 else:
     st.write("No trips logged yet.")
 
