@@ -79,7 +79,7 @@ if hasattr(st, "experimental_user"):
 else:
     user_email = "LocalUser"
 
-st.write("Logged in as:", user_email)
+st.write(user)
 
 def get_user_name():
     if hasattr(st, "experimental_user"):
