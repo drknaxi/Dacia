@@ -21,6 +21,7 @@ headers = {
     "Accept": "application/vnd.github.v3+json"
 }
 
+
 def github_file_url(path):
     return f"https://api.github.com/repos/{REPO}/contents/{path}"
 
@@ -58,12 +59,44 @@ def save_csv_to_github(df, path, commit_msg="Update data file"):
 
 DRIVING_FILE = "driving_log.csv"
 FUEL_FILE = "fuel_log.csv"
+CHANGELOG_FILE ="changelog.csv"
+
+def log_change(action, driver="", km_after=None, driven_km=None, comment="", fuel=None, liters=None, euros=None, user=""):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_row = {
+        "Timestamp": timestamp,
+        "Action": action,
+        "Driver": driver,
+        "Km After": km_after,
+        "Driven Km": driven_km,
+        "Comment": comment,
+        "Fuel": fuel,
+        "Liters": liters,
+        "Euros": euros,
+        "User": user
+    }
+    global changelog_df
+    changelog_df = pd.concat([changelog_df, pd.DataFrame([new_row])], ignore_index=True)
+    save_csv_to_github(changelog_df, CHANGELOG_FILE)
 
 driving_columns = ["Date", "Driver", "Km After", "Driven Km", "Comment", "User"]
 fuel_columns = ["Date", "Fueler", "Km", "Euros", "Liters", "Note", "Km since last fueling"]
+changelog_columns = [
+    "Timestamp",   # when the action happened
+    "Action",      # "Add Trip" or "Add Fueling" etc.
+    "Driver",      # driver of the trip or fueler
+    "Km After",    # odometer reading
+    "Driven Km",   # kilometers driven (for trips) or km since last fueling
+    "Comment",     # optional comment
+    "Fuel",        # type of fuel or marker for fueling
+    "Liters",      # fuel amount
+    "Euros",       # cost
+    "User"         # user who submitted
+]
 
 driving_df = load_csv_from_github(DRIVING_FILE, driving_columns)
 fuel_df = load_csv_from_github(FUEL_FILE, fuel_columns)
+changelog_df = load_csv_from_github(CHANGELOG_FILE, changelog_columns)
 
 # ======================
 # Everything below can now safely use driving_df and fuel_df
@@ -131,6 +164,14 @@ if submitted:
         driving_df = pd.concat([driving_df, pd.DataFrame([new_row])], ignore_index=True)
 
         save_csv_to_github(driving_df, DRIVING_FILE)
+        log_change(
+            action="Add Trip",
+            driver=driver,
+            km_after=km_after,
+            driven_km=driven_km,
+            comment=comment,
+            user=user_email
+        )
         st.session_state["driving_df"] = driving_df
     
         st.success(f"Trip saved! Driven km: {driven_km}")
@@ -176,6 +217,17 @@ with st.form("fuel_form"):
             }
             fuel_df = pd.concat([fuel_df, pd.DataFrame([new_fuel])], ignore_index=True)
             save_csv_to_github(fuel_df, FUEL_FILE)
+            log_change(
+                action="Add Fueling",
+                driver=fueler,
+                km_after=km_fuel,
+                driven_km=km_since_last,
+                comment=note,
+                fuel="Fuel",
+                liters=liters,
+                euros=euros,
+                user=user_email
+            )
             st.session_state["fuel_df"] = fuel_df
             st.success(f"Fueling saved! Km since last fueling: {km_since_last}")
 
@@ -198,6 +250,14 @@ with st.form("fuel_form"):
                     "Comment": "AUTOMATICALLY FUELED",
                     "User": user_email
                 }
+                log_change(
+                    action="Automatic drive split1",
+                    driver=trip["Driver"],
+                    km_after=km_fuel,
+                    driven_km=km_fuel - start_km,
+                    comment="AUTOMATICALLY FUELED",
+                    user=user_email
+                )
                 # Segment after fueling
                 segment2 = {
                     "Date": trip["Date"],
@@ -207,6 +267,14 @@ with st.form("fuel_form"):
                     "Comment": trip["Comment"],
                     "User": trip["User"]
                 }
+                log_change(
+                    action="Automatic drive split2",
+                    driver=trip["Driver"],
+                    km_after=end_km,
+                    driven_km=end_km - km_fuel,
+                    comment=trip["Comment"],
+                    user=user_email
+                )
 
                 # Drop the original trip
                 driving_df = driving_df.drop(idx)
@@ -221,7 +289,25 @@ with st.form("fuel_form"):
                 st.session_state["driving_df"] = driving_df
                 break
 
-                
+
+st.header("Undo Last Entry")
+
+if st.button("Undo Last Trip"):
+    if len(driving_df) > 0:
+        last_entry = driving_df.iloc[-1]
+        driving_df = driving_df.iloc[:-1]  # remove last row
+        save_csv_to_github(driving_df, DRIVING_FILE)
+        log_change("Delete Last Trip", driver=last_entry["Driver"], km_after=last_entry["Km After"], driven_km=last_entry["Driven Km"], comment=last_entry["Comment"], user=user_email)
+        st.success("Last trip deleted!")
+
+if st.button("Undo Last Fueling"):
+    if len(fuel_df) > 0:
+        last_entry = fuel_df.iloc[-1]
+        fuel_df = fuel_df.iloc[:-1]
+        save_csv_to_github(fuel_df, FUEL_FILE)
+        log_change("Delete Last Fueling", driver=last_entry["Fueler"], km_after=last_entry["Km"], fuel=last_entry["Euros"], liters=last_entry["Liters"], user=user_email)
+        st.success("Last fueling deleted!")
+        
 
         # ======================
         # Driver Stats
@@ -286,13 +372,15 @@ if len(driving_df) > 0:
 else:
     st.write("No trips logged yet.")
 
+
 # ======================
 # Fuel Cost Sharing and Balance Grid
 # ======================
 st.header("Fuel Cost Sharing & Balance Grid EXPERIMENTAL NOT EVERYTHING TESTED YET")
 if len(fuel_df) > 0 and len(driving_df) > 0:
     # Include both drivers and fuelers
-    drivers = sorted(set(driving_df["Driver"].unique()) | set(fuel_df["Fueler"].unique()))
+    drivers = sorted(set(driving_df["Driver"].astype(str).unique()) |
+                 set(fuel_df["Fueler"].astype(str).unique()))
     balances = {d1: {d2: 0 for d2 in drivers} for d1 in drivers}
     
     for idx, fuel in fuel_df.iterrows():
@@ -323,3 +411,6 @@ if len(fuel_df) > 0 and len(driving_df) > 0:
         st.dataframe(grid.style.format("{:.2f}"))
 else:
     st.write("Not enough data for fuel stats yet.")
+
+st.write(driving_df)
+st.write(fuel_df)
