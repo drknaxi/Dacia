@@ -72,8 +72,9 @@ fuel_df = load_csv_from_github(FUEL_FILE, fuel_columns)
 last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
 st.write(f"Last km: {last_km}")
 user = st.experimental_user
-if user:
-    user_email = user.get("email", "LocalUser")
+if hasattr(st, "experimental_user"):
+    user_info = st.experimental_user
+    user_email = user_info.get("email", "LocalUser") if user_info else "LocalUser"
 else:
     user_email = "LocalUser"
 
