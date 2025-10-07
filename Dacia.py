@@ -86,6 +86,7 @@ def get_user_name():
         st.write('in if')
         user_info = st.experimental_user
         if user_info:
+            st.write(user_info)
             # Try username first, fallback to email, then to LocalUser
             return user_info.get("name") or user_info.get("email") or "LocalUser"
     return "LocalUser"
