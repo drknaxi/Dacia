@@ -228,6 +228,11 @@ with st.form("fuel_form"):
         # ======================
         st.header("Driver Stats")
 if len(driving_df) > 0:
+    exclude_drivers = ["getankt start"]
+
+    # Filter out excluded drivers
+    driving_stats_df = driving_df[~driving_df["Driver"].isin(exclude_drivers)]
+
     total_km = driving_df.groupby("Driver")["Driven Km"].sum().reset_index()
     total_km = total_km.rename(columns={"Driven Km": "Total Km"})
     total_km["% of Total Km"] = 100 * total_km["Total Km"] / total_km["Total Km"].sum()
