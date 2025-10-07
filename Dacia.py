@@ -83,16 +83,16 @@ else:
 
 def get_user_name():
     if hasattr(st, "experimental_user"):
-        st.write('in if')
+        #st.write('in if')
         user_info = st.experimental_user
         if user_info:
-            st.write(user_info)
+            #st.write(user_info)
             # Try username first, fallback to email, then to LocalUser
             return user_info.get("name") or user_info.get("email") or "LocalUser"
     return "LocalUser"
 
 user_name = get_user_name()
-st.write(f"Logged in as: {user_name}")
+#st.write(f"Logged in as: {user_name}")
 
 
 # Add Driving Trip form, fueling form, stats, etc.
