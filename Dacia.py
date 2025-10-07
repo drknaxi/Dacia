@@ -1,7 +1,9 @@
 import streamlit as st
-import dropbox
+import base64
+import requests
 import pandas as pd
 from io import BytesIO
+from io import StringIO
 from datetime import datetime
 from datetime import date
 
@@ -10,31 +12,58 @@ from datetime import date
 # Dropbox token
 # ======================
 
-TOKEN = st.secrets["DROPBOX_TOKEN"]
-dbx = dropbox.Dropbox(TOKEN)
-st.success("Dropbox connected!")
-DRIVING_FILE = "/driving_log.csv"
-FUEL_FILE = "/fuel_log.csv"
+GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+REPO = st.secrets["GITHUB_REPO"]
+BRANCH = "main"  # or whichever branch you use
 
-driving_columns = ["Date", "Driver", "Km After", "Driven Km", "Comment", "User"]
-fuel_columns = ["Date", "Driver", "Km At Fuel", "Liters", "Euros", "Comment", "User"]
+headers = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
 
-def load_csv(path, columns):
-    try:
-        metadata, res = dbx.files_download(path)
-        df = pd.read_csv(BytesIO(res.content))
-        return df
-    except dropbox.exceptions.ApiError:
+def github_file_url(path):
+    return f"https://api.github.com/repos/{REPO}/contents/{path}"
+
+def load_csv_from_github(path, columns):
+    url = github_file_url(path)
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        content = base64.b64decode(r.json()["content"]).decode("utf-8")
+        return pd.read_csv(StringIO(content))
+    else:
         return pd.DataFrame(columns=columns)
 
-def save_csv(df, path):
-    with BytesIO() as f:
-        df.to_csv(f, index=False) 
-        f.seek(0) 
-        dbx.files_upload(f.read(), path, mode=dropbox.files.WriteMode.overwrite)
-# Load CSVs safely
-driving_df = load_csv(DRIVING_FILE, driving_columns)
-fuel_df = load_csv(FUEL_FILE, fuel_columns)
+def save_csv_to_github(df, path, commit_msg="Update data file"):
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    content = base64.b64encode(csv_buffer.getvalue().encode()).decode()
+
+    url = github_file_url(path)
+    r = requests.get(url, headers=headers)
+    sha = r.json()["sha"] if r.status_code == 200 else None
+
+    data = {
+        "message": commit_msg,
+        "content": content,
+        "branch": BRANCH
+    }
+    if sha:
+        data["sha"] = sha
+
+    r = requests.put(url, headers=headers, json=data)
+    if r.status_code not in (200, 201):
+        st.error(f"Failed to save {path}: {r.text}")
+    else:
+        st.success(f"Saved {path} to GitHub!")
+
+DRIVING_FILE = "driving_log.csv"
+FUEL_FILE = "fuel_log.csv"
+
+driving_columns = ["Date", "Driver", "Km After", "Driven Km", "Comment", "User"]
+fuel_columns = ["Date", "Fueler", "Km", "Euros", "Liters", "Note", "Km since last fueling"]
+
+driving_df = load_csv_from_github(DRIVING_FILE, driving_columns)
+fuel_df = load_csv_from_github(FUEL_FILE, fuel_columns)
 
 # ======================
 # Everything below can now safely use driving_df and fuel_df
@@ -80,7 +109,7 @@ if submitted:
         }
         driving_df = pd.concat([driving_df, pd.DataFrame([new_row])], ignore_index=True)
 
-        save_csv(driving_df, DRIVING_FILE)
+        save_csv_to_github(driving_df, DRIVING_FILE)
         st.session_state["driving_df"] = driving_df
     
         st.success(f"Trip saved! Driven km: {driven_km}")
@@ -125,7 +154,7 @@ with st.form("fuel_form"):
                 "Km since last fueling": km_since_last
             }
             fuel_df = pd.concat([fuel_df, pd.DataFrame([new_fuel])], ignore_index=True)
-            save_csv(fuel_df, FUEL_FILE)
+            save_csv_to_github(fuel_df, FUEL_FILE)
             st.session_state["fuel_df"] = fuel_df
             st.success(f"Fueling saved! Km since last fueling: {km_since_last}")
 
@@ -167,7 +196,7 @@ with st.form("fuel_form"):
                 # Sort by kilometers to keep correct order
                 driving_df = driving_df.sort_values("Km After").reset_index(drop=True)
 
-                save_csv(driving_df, DRIVING_FILE)
+                save_csv_to_github(driving_df, DRIVING_FILE)
                 st.session_state["driving_df"] = driving_df
                 break
 
