@@ -71,6 +71,7 @@ fuel_df = load_csv_from_github(FUEL_FILE, fuel_columns)
 
 last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
 st.write(f"Last km: {last_km}")
+
 user = st.experimental_user
 if hasattr(st, "experimental_user"):
     user_info = st.experimental_user
@@ -79,6 +80,17 @@ else:
     user_email = "LocalUser"
 
 st.write("Logged in as:", user_email)
+
+def get_user_name():
+    if hasattr(st, "experimental_user"):
+        user_info = st.experimental_user
+        if user_info:
+            # Try username first, fallback to email, then to LocalUser
+            return user_info.get("name") or user_info.get("email") or "LocalUser"
+    return "LocalUser"
+
+user_name = get_user_name()
+st.write(f"Logged in as: {user_name}")
 
 
 # Add Driving Trip form, fueling form, stats, etc.
