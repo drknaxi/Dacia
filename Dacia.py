@@ -83,6 +83,7 @@ st.write("Logged in as:", user_email)
 
 def get_user_name():
     if hasattr(st, "experimental_user"):
+        st.write('in if')
         user_info = st.experimental_user
         if user_info:
             # Try username first, fallback to email, then to LocalUser
