@@ -71,8 +71,14 @@ fuel_df = load_csv_from_github(FUEL_FILE, fuel_columns)
 
 last_km = driving_df["Km After"].iloc[-1] if len(driving_df) > 0 else 0
 st.write(f"Last km: {last_km}")
-user_email = st.session_state.get("user", None)  # Streamlit sets the logged-in user automatically
-st.write(f"Logged in as: {user_email}")
+user = st.experimental_user
+if user:
+    user_email = user.get("email", "LocalUser")
+else:
+    user_email = "LocalUser"
+
+st.write("Logged in as:", user_email)
+
 
 # Add Driving Trip form, fueling form, stats, etc.
 
