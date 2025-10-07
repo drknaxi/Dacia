@@ -228,19 +228,21 @@ with st.form("fuel_form"):
         # ======================
         st.header("Driver Stats")
 if len(driving_df) > 0:
+        # Define drivers to exclude from stats
     exclude_drivers = ["getankt start"]
 
     # Filter out excluded drivers
     driving_stats_df = driving_df[~driving_df["Driver"].isin(exclude_drivers)]
 
-    total_km = driving_df.groupby("Driver")["Driven Km"].sum().reset_index()
+    # --- Total kilometers per driver ---
+    total_km = driving_stats_df.groupby("Driver")["Driven Km"].sum().reset_index()
     total_km = total_km.rename(columns={"Driven Km": "Total Km"})
     total_km["% of Total Km"] = 100 * total_km["Total Km"] / total_km["Total Km"].sum()
 
     # --- Kilometers since last fueling ---
     if len(fuel_df) > 0:
         last_fuel_km = fuel_df["Km"].iloc[-1]
-        since_fuel_df = driving_df[driving_df["Km After"] > last_fuel_km]
+        since_fuel_df = driving_stats_df[driving_stats_df["Km After"] > last_fuel_km]
         km_since_fuel = since_fuel_df.groupby("Driver")["Driven Km"].sum().reset_index()
         km_since_fuel = km_since_fuel.rename(columns={"Driven Km": "Km Since Fuel"})
         km_since_fuel["% Since Fuel"] = 100 * km_since_fuel["Km Since Fuel"] / km_since_fuel["Km Since Fuel"].sum()
@@ -279,6 +281,7 @@ if len(driving_df) > 0:
         "Km Since Fuel": "{:.0f}",
         "% Since Fuel": "{:.1f}%"
     }))
+
 
 else:
     st.write("No trips logged yet.")
